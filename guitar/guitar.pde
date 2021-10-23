@@ -48,6 +48,7 @@ PImage image_great;          //グレイト判定の画像
 PImage image_good;           //グッド判定の画像
 
 /*設定情報*/
+FileManager fm;
 ArrayList<Music> List_music;   //フォルダ内にある曲のリスト
 ArrayList<Note> List_play;    //現在プレイ中の曲情報
 ArrayList<Note> List_tmp;     //リスト削除時の退避用
@@ -137,6 +138,7 @@ void setup()
   image_great = loadImage("image\\great.png");  //判定画像を読み込む
   image_good = loadImage("image\\good.png");  //判定画像を読み込む
 
+  fm = new FileManager();
   List_music = new ArrayList<Music>();    //曲のリストを用意
   List_play = new ArrayList<Note>();     //プレイ中のNotesのリストを用意
   List_tmp = new ArrayList<Note>();      //退避用のリストを用意
@@ -253,7 +255,7 @@ public void drawPlayWindow()
             sound_enter.play(0);              //効果音を再生
             if(show_music != null) show_music.close();
             selectMusic();                   //曲選択
-            loadRecord();                    //ノーツを読み込む
+            List_play = fm.loadRecord(playing_music.name);                    //ノーツを読み込む
             move = true;                     //操作があった状態へ
           }
         }
@@ -422,8 +424,8 @@ public void drawPlayWindow()
           }
         }
         if(music.isPlaying() == false && pause_now == false){  //再生が終わっていたら
-          saveScore();                     //プレイを記録
-          getRank();                       //ランキングを取得
+          fm.saveScore(playing_music.name, score);                     //プレイを記録
+          fm.getRank(playing_music.name, score);                       //ランキングを取得
           mode = MODE.RESULT_PLAY;         //プレイ結果へ移行
           select = 0;                      //選択を初期化
           step = 0;                        //状態を初期化
@@ -539,7 +541,7 @@ public void drawPlayWindow()
               save_combo = combo;
               save_score = score;
               mode = MODE.RECORD;           //レコード中に戻す
-              saveRecord();
+              fm.saveRecord(playing_music.name, List_play, combo);
               count = 180;                  //カウントダウン
               break;
             case 2:                       /*最後の記録からやり直し*/
@@ -655,7 +657,7 @@ public void drawPlayWindow()
           sound_enter.play(0);         //効果音を再生
           switch(select){              //選択項目を確認
             case 0:                      //保存して戻る
-              saveRecord();                //レコードファイルを保存
+              fm.saveRecord(playing_music.name, List_play, combo);                //レコードファイルを保存
               reset();                     //初期化
               mode = MODE.SELECT_RECORD;   //レコード曲選択へ戻る
               break;
@@ -683,7 +685,7 @@ void reset()
   save_pos = 0;
   List_play.clear();
   List_music.clear();
-  loadMusic();
+  List_music = fm.loadMusic(mode);
   score = 0;
   combo = 0;
 }
@@ -857,167 +859,6 @@ void selectMusic()
   }
 }
 
-/*スコアの書き込み*/
-void saveScore()
-{
-  try{
-    File score_file = new File(dataPath("rank") + "\\" + playing_music.name + ".rank");
-    if(score_file.exists() && score_file.isFile() && score_file.canWrite()){
-      FileWriter file_writer = new FileWriter(score_file, true);
-      
-      file_writer.write(score+"\n");
-      playing_music.play_count++;
-      
-      file_writer.close();
-    }
-  }catch(IOException e){
-    System.out.println(e);
-  }
-}
-
-/*ランキングの取得*/
-void getRank(){
-  rank = 1;
-  String read_file[] = loadStrings("rank\\" + playing_music.name + ".rank");    //ファイルを読み込む
-  for(int j = 1; j < read_file.length; j++){      //各行を参照
-    int data = Integer.parseInt(read_file[j]);
-    if(data > score) rank++;                        //スコアが今回より高かったら順位を下げる
-  }
-}
-
-/*レコードファイルの読み込み*/
-void loadRecord()
-{
-  String read_file[] = loadStrings("notes\\" +  playing_music.name +".csv");    //CSVファイルを読み込む
-  
-  List_play.clear();
-  
-  for(int i = 0; i < read_file.length; i++){      //各行を参照
-    String [] columm = split(read_file[i], ',');    //カンマ区切りで配列に格納
-    
-    new_note = new Note();                              //新しいノーツを用意
-    
-    /*各要素の読み込み*/
-    new_note.time = Integer.parseInt(columm[0]);
-    new_note.time_finish = Integer.parseInt(columm[1]);
-    if(Integer.parseInt(columm[2]) == 1) new_note.f_1 = true;
-    else new_note.f_1 = false;
-    if(Integer.parseInt(columm[3]) == 1) new_note.f_2 = true;
-    else new_note.f_2 = false;
-    if(Integer.parseInt(columm[4]) == 1) new_note.f_3 = true;
-    else new_note.f_3 = false;
-    
-    List_play.add(new_note);
-  }
-}
-
-/*レコードファイルの出力*/
-void saveRecord()
-{
-  record_file = createWriter("notes\\" + playing_music.name + ".csv");
-  
-  for(Note n : List_play){
-    record_file.print(n.time);
-    record_file.print(",");
-    record_file.print(n.time_finish);
-    record_file.print(",");
-    
-    if(n.f_1){
-      record_file.print(1);
-    }
-    else{
-      record_file.print(0);
-    }
-    record_file.print(",");
-    
-    if(n.f_2){
-      record_file.print(1);
-    }
-    else{
-      record_file.print(0);
-    }
-    record_file.print(",");
-    
-    if(n.f_3){
-      record_file.println(1);
-    }
-    else{
-      record_file.println(0);
-    }
-  }
-  
-  record_file.flush();
-  record_file.close();
-  
-  rank_file = createWriter("rank\\" + playing_music.name + ".rank");
-  rank_file.println(combo);
-  //rank_file.println(score);
-  rank_file.flush();
-  rank_file.close();
-}
-
-/*フォルダ内の曲を読み込む関数*/
-void loadMusic()
-{
-  File dir;
-  File[] files;
-  switch(mode){
-    case SELECT_PLAY:
-      dir = new File(dataPath("rank"));
-      files = dir.listFiles();        //フォルダ内のファイルを配列に入れる
-      if(files.length == 0){
-          mode = MODE.SELECT_MODE;
-          showButtons();
-          break;
-      }
-      for (int i = 0; i < files.length; i++) {     //ファイル数分ループする
-        if (files[i].getPath().endsWith(".rank")) {    //.rankでおわるファイルだったら
-          Music music = new Music();
-          music.name = files[i].getName().substring(0, files[i].getName().lastIndexOf('.'));
-          String read_file[] = loadStrings(dataPath("rank") + "\\" + music.name + ".rank");    //ファイルを読み込む
-          music.notes_count = Integer.parseInt(read_file[0]);        //ノーツ数を読み込む
-          long sum_score = 0;                                //合計得点（平均計算用）
-          for(int j = 1; j < read_file.length; j++){      //各行を参照
-            int data = Integer.parseInt(read_file[j]);
-            sum_score+=data;                              //得点を加算
-            music.play_count++;                           //プレイ回数をカウント
-            music.checkRank(data);                        //ランキングを更新
-          }
-          music.max_score = 0;
-          for(int j = 0; j < music.notes_count; j++){
-            combo++;
-            music.max_score+=(score_perfect*(float)(10 + combo/50)/10);
-          }
-          combo = 0;
-          if(music.play_count > 0){
-            music.avg_score = (int)sum_score / music.play_count;  //平均点を求める
-            if(music.avg_score > music.max_score*9/10) music.level = 1;
-            else if(music.avg_score < music.max_score/2)music.level = 10 - (int)(((float)(music.avg_score-music.max_score/2) / (float)(music.max_score))*10);
-            else music.level = 10 - (int)(((float)(music.avg_score) / (float)(music.max_score))*10);
-          }
-          List_music.add(music);                    //曲リストに加える
-        }
-      }
-      break;
-    case SELECT_RECORD:
-      dir = new File(dataPath("music"));
-      files = dir.listFiles();        //フォルダ内のファイルを配列に入れる
-      if(files.length == 0){
-          mode = MODE.SELECT_MODE;
-          showButtons();
-          break;
-      }
-      for (int i = 0; i < files.length; i++) {     //ファイル数分ループする
-        if (files[i].getPath().endsWith(".mp3")) {    //.mp3でおわるファイルだったら
-          Music music = new Music();
-          music.name = files[i].getName().substring(0, files[i].getName().lastIndexOf('.'));
-          List_music.add(music);                    //曲リストに加える
-        }
-      }
-      break;   
-  }
-}
-
 /*画面サイズを変更する関数*/
 void changeWindowSize(int w, int h) {
   frame.setSize( w + frame.getInsets().left + frame.getInsets().right, h + frame.getInsets().top + frame.getInsets().bottom );
@@ -1077,7 +918,7 @@ void buttonPlay()
   mode = MODE.SELECT_PLAY;                                     //モードをスタイル選択に
   hideButtons();
   surface.setLocation(0, 0);                                    //画面の位置を左上に持っていく
-  loadMusic();
+  List_music = fm.loadMusic(mode);
   f1_x = width/4;
   f2_x = width/4*2;
   f3_x = width/4*3;
@@ -1089,7 +930,7 @@ void buttonRecord()
   mode = MODE.SELECT_RECORD;                                    //モードをレコード曲選択に
   hideButtons();
   surface.setLocation(0, 0);                                    //画面の位置を左上に持っていく
-  loadMusic();
+  List_music = fm.loadMusic(mode);
   f1_x = width/6;
   f2_x = width/6*2;
   f3_x = width/6*3;
