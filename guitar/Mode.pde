@@ -2,7 +2,6 @@ public enum MODE    //モード判断用
 {
   SELECT_MODE,
   SELECT_PLAY,
-  SELECT_STYLE,
   PAUSE_PLAY,
   PLAY,
   RESULT_PLAY,

@@ -4,7 +4,6 @@ import controlP5.*;    //GUI作成用ライブラリ(クリックできるボタ
 import javax.swing.*;  //ファイル処理のライブラリ
 import java.io.FileWriter;  //ファイル書き込み用ライブラリ
 import java.io.IOException;  //例外処理用
-/*サブウインドウ用*/
 import javax.swing.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
@@ -14,11 +13,6 @@ import java.lang.reflect.Method;
 import processing.serial.*; 
 
 Serial myPort;    /*宣言*/
-
-SecondApplet second_window;  //2つ目のウィンドウ
-
-PGraphics mw;       //映像画面  
-PGraphics pw;       //プレイ画面  
 
 Minim minim;                  //minim変数
 AudioPlayer music;            //プレイ中の音楽
@@ -30,7 +24,6 @@ Sampler sampler;
 AudioOutput audio_output;
 
 boolean m_play = false;       //再生中か否か
-boolean back_m_play = false;  
 
 PFont font;
 
@@ -59,7 +52,6 @@ ArrayList<Music> List_music;   //フォルダ内にある曲のリスト
 ArrayList<Note> List_play;    //現在プレイ中の曲情報
 ArrayList<Note> List_tmp;     //リスト削除時の退避用
 MODE mode;                    //現在のモード
-boolean projector = false;    //映像を投影するか
 float notes_speed;            //Notesの移動速度
 int position;                 //現在の再生位置 
 Note new_note;                //記録する新しいノーツ
@@ -112,15 +104,9 @@ void setup()
 { 
   //myPort = new Serial(this, "COM8", 9600); //シリアル通信設定 ※Arduinoと同じにする
   
-  pw = createGraphics(displayWidth, displayHeight, JAVA2D);    //映像画面用
-  mw = createGraphics(displayWidth, displayHeight, JAVA2D);    //プレイ画面用
-  
-  mw.textAlign(CENTER);
-  mw.rectMode(CENTER);
-  mw.imageMode(CENTER);
-  pw.textAlign(CENTER);
-  pw.rectMode(CENTER);
-  pw.imageMode(CENTER);
+  textAlign(CENTER);
+  rectMode(CENTER);
+  imageMode(CENTER);
   
   frameRate(60);
 
@@ -171,18 +157,8 @@ void setup()
 void draw()
 { 
   //get_input();
-  if(mode == MODE.PLAY && projector){  //参加型でプレイ中だったら
-    mw.beginDraw();  
-    mw.textAlign(CENTER);
-    mw.rectMode(CENTER);
-    mw.imageMode(CENTER);
-    mw.textFont(font);
-    drawMovieWindow();
-    mw.endDraw();
-  }
-  else{
-    drawPlayWindow();
-  }
+  
+  drawPlayWindow();
 }
 
 /*入力*/
@@ -206,26 +182,6 @@ void get_input()
   }
 }
 
-
-/*プレイ画面描写用*/
-public void drawMovieWindow()
-{
-  mw.background(0);
-  if(count > 0){      //カウントダウンが必要だったら
-    mw.textSize(width/15);
-    mw.fill(220);
-    mw.text(count/60+1, width/2, height/5);
-    count--;
-    pause_now = true;
-  }
-  else{ 
-    if(!m_play){
-      m_play = true;  
-    }
-    //image(movie, 0, 0, width, height);
-  }
-}
-
 /*プレイ画面描写用*/
 public void drawPlayWindow()
 {
@@ -245,42 +201,7 @@ public void drawPlayWindow()
   else{
     switch(mode) {                  //状態を確認
       case SELECT_MODE:               /*モード選択画面*/
-
-        break;
-        
-      case SELECT_STYLE:            /*STYLEの選択*/
-        move = false;          //操作があったかどうかの変数
-        if (fret1 && select > 0) {     //一番最初を選択していない状態で第一フレットが押されたら
-          select--;                      //選択中のインデックスを一つ上に
-          sound_select.play(0);           //効果音を再生
-          move = true;                   //操作があった状態へ
-        }
-        if (fret3 && select < 1) {  //一番最後を選択していない状態で第三フレットがおされたら
-          select++;                      //選択中のインデックスを一つ下へ
-          sound_select.play(0);           //効果音を再生
-          move = true;                   //操作があった状態へ
-        }
-      
-        displaySelect();  //メニューを表示
-      
-        if (pick) {                      //弦が押されたら
-          sound_enter.play(0);              //効果音を再生
-          switch(select){                  //選択項目を確認
-            case 0:                       /*非参加を選択*/
-              mode = MODE.SELECT_PLAY;      //曲選択に移行
-              projector = false;            //映像投影をオフに
-              break;
-            case 1:                         /*映像参加を選択*/
-              mode = MODE.SELECT_PLAY;        //曲選択に移行
-              projector = true;               //映像投影をオンに
-              break;
-          }
-          loadMusic();                                                  //曲を読み込む
-          delay(500);
-          move = true;                   //操作があった状態へ
-        }
-     
-        if (move) delay(300);  //操作があったら300msまつ(連続入力防止)
+        showButtons();
         break;
         
       case SELECT_PLAY:               /*曲選択画面*/
@@ -333,15 +254,6 @@ public void drawPlayWindow()
             if(show_music != null) show_music.close();
             selectMusic();                   //曲選択
             loadRecord();                    //ノーツを読み込む
-            if(projector){                   //参加だったらサブウィンドウを用意
-              String[] args = {"SecondWindow"};
-              second_window = new SecondApplet();
-              //second_window.setMain(this);
-              PApplet.runSketch(args, second_window);
-              //print(select);
-              //movie = new Movie(this, "select3.mp4");
-              delay(500);
-            }
             move = true;                     //操作があった状態へ
           }
         }
@@ -391,7 +303,7 @@ public void drawPlayWindow()
               break;
             case 3:                       /*曲選択へ戻る*/
               reset();                      //初期化
-              mode = MODE.SELECT_PLAY;      //プレイ曲選択へ戻る
+              mode = MODE.SELECT_PLAY;      //モード選択へ戻る
               break;
           }
           delay(500);
@@ -554,7 +466,7 @@ public void drawPlayWindow()
           step++;
           move = true;
           if(step > 3){
-            mode = MODE.SELECT_STYLE;
+            mode = MODE.SELECT_PLAY;
             reset();
             delay(500);
           }
@@ -784,31 +696,6 @@ void reset()
 void displaySelect()
 {
   switch(mode){
-    case SELECT_STYLE:
-      textSize(width/30);                     //テキストサイズを設定
-      fill(200);                        //テキストの色を設定
-      switch(select){                     //選択中の項目を確認
-        case 0:
-          text("PERFORM", width*3/4, height/4);
-          textSize(width/10);                    //選択中のテキストサイズを設定
-          fill(color(255, 191, 127));       //選択中のテキストの色を設定、表示
-          text("GAME", width/4, height/4);
-          textSize(width/20);                     //テキストサイズを設定
-          fill(200);                        //テキストの色を設定
-          text("ゲームのみを楽しむ!!\n今立ってる場所でプレイします", width/2, height*3/4);
-          break;
-        case 1:
-          textSize(width/10);                    //選択中のテキストサイズを設定
-          fill(color(255, 191, 127));       //選択中のテキストの色を設定、表示
-          text("PERFORM", width*3/4, height/4);
-          fill(200);                        //テキストの色を設定
-          textSize(width/20);                     //テキストサイズを設定
-          text("GAME", width/4, height/4);
-          text("あなたが作品の一部として参加!!\n投影される映像の前でプレイします", width/2, height*3/4);
-          break;
-      }
-      break;
-      
     case SELECT_PLAY:
       /*選択中の曲のテキスト*/
       textSize(width/20);                    //選択中のテキストサイズを設定
@@ -1075,10 +962,14 @@ void loadMusic()
   File dir;
   File[] files;
   switch(mode){
-    case SELECT_STYLE:
     case SELECT_PLAY:
       dir = new File(dataPath("rank"));
       files = dir.listFiles();        //フォルダ内のファイルを配列に入れる
+      if(files.length == 0){
+          mode = MODE.SELECT_MODE;
+          showButtons();
+          break;
+      }
       for (int i = 0; i < files.length; i++) {     //ファイル数分ループする
         if (files[i].getPath().endsWith(".rank")) {    //.rankでおわるファイルだったら
           Music music = new Music();
@@ -1111,6 +1002,11 @@ void loadMusic()
     case SELECT_RECORD:
       dir = new File(dataPath("music"));
       files = dir.listFiles();        //フォルダ内のファイルを配列に入れる
+      if(files.length == 0){
+          mode = MODE.SELECT_MODE;
+          showButtons();
+          break;
+      }
       for (int i = 0; i < files.length; i++) {     //ファイル数分ループする
         if (files[i].getPath().endsWith(".mp3")) {    //.mp3でおわるファイルだったら
           Music music = new Music();
@@ -1162,15 +1058,26 @@ void keyReleased()
   if (key == ' ') pause = false;  //スペースが押されていたらPAUSEをtrueに
 }
 
+void showButtons()
+{
+  button_select_play.show();                                    //モード選択PLAYボタンを表示
+  button_select_record.show();                                  //モード選択RECORDボタンを表示
+}
+
+void hideButtons()
+{
+  button_select_play.hide();                                    //モード選択PLAYボタンを隠す
+  button_select_record.hide();                                  //モード選択RECORDボタンを隠す
+}
+
 /*モード選択PLAYボタンが押されたときの関数*/
 void buttonPlay()
 {
   sound_enter.play(0);           //効果音を再生
-  mode = MODE.SELECT_STYLE;                                     //モードをスタイル選択に
-  button_select_play.hide();                                    //モード選択PLAYボタンを隠す
-  button_select_record.hide();                                  //モード選択RECORDボタンを隠す
-  //changeWindowSize(displayWidth, displayHeight);                //画面サイズを画面いっぱいにする
+  mode = MODE.SELECT_PLAY;                                     //モードをスタイル選択に
+  hideButtons();
   surface.setLocation(0, 0);                                    //画面の位置を左上に持っていく
+  loadMusic();
   f1_x = width/4;
   f2_x = width/4*2;
   f3_x = width/4*3;
@@ -1180,198 +1087,10 @@ void buttonRecord()
 {
   sound_enter.play(0);           //効果音を再生
   mode = MODE.SELECT_RECORD;                                    //モードをレコード曲選択に
-  button_select_play.hide();                                    //モード選択PLAYボタンを隠す
-  button_select_record.hide();                                  //モード選択RECORDボタンを隠す
-  //changeWindowSize(displayWidth, displayHeight);                //画面サイズを画面いっぱいにする
+  hideButtons();
   surface.setLocation(0, 0);                                    //画面の位置を左上に持っていく
   loadMusic();
   f1_x = width/6;
   f2_x = width/6*2;
   f3_x = width/6*3;
-}
-
-
-/*プレイ画面描写用*/
-public void pw_drawPlayWindow()
-{
-  boolean move;
-     
-  pw.background(0);                  //画面のクリア
-
-  if(count > 0){      //カウントダウンが必要だったら
-    pw.textSize(width/7);
-    pw.fill(220);
-    pw.text(count/60+1, width/2, height/2);
-    count--;
-    pause_now = true;
-  }
-  else{
-    switch(mode) {                  //状態を確認   
-      case PAUSE_PLAY:              /*プレイ中のPAUSE画面*/
-        move = false;          //操作があったかどうかの変数
-        if (fret1 && select > 0) {     //一番最初を選択していない状態で第一フレットが押されたら
-          select--;                      //選択中のインデックスを一つ上に
-          sound_select.play(0);           //効果音を再生
-          move = true;                   //操作があった状態へ
-        }
-        if (fret3 && select < 3) {  //一番最後を選択していない状態で第三フレットがおされたら
-          select++;                      //選択中のインデックスを一つ下へ
-          sound_select.play(0);           //効果音を再生
-          move = true;                   //操作があった状態へ
-        }
-      
-        displaySelect();  //メニューを表示
-      
-        if (pick) {                      //弦が押されたら
-          sound_enter.play(0);              //効果音を再生
-          switch(select){                  //選択項目を確認
-            case 0:                         /*再開*/
-              mode = MODE.PLAY;             //プレイ中に戻す
-              count = 180;                  //カウントダウン
-              break;
-            case 1:                       /*現時点まで記録*/
-              save_pos = music.position();  //最後位置に記録
-              mode = MODE.PLAY;             //プレイ中に戻す
-              count = 180;                  //カウントダウン
-              break;
-            case 2:                       /*最後の記録からやり直し*/
-              music.cue(save_pos);          //再生位置を最後の記録地点へ
-              for(Note n : List_play){      //入力されたノーツを確認
-                if(n.time <= save_pos){       //ノーツが最後の記録地点以前だったら
-                  List_tmp.add(n);              //ノーツを退避
-                }
-              }
-              List_play.clear();            //ノーツをクリア
-              List_play = List_tmp;         //退避したノーツを格納
-              List_tmp = new ArrayList<Note>();
-              List_tmp.clear();             //ノーツをクリア
-              mode = MODE.PLAY;             //プレイ中に戻す
-              count = 180;                  //カウントダウン
-              break;
-            case 3:                       /*曲選択へ戻る*/
-              reset();                      //初期化
-              mode = MODE.SELECT_PLAY;      //プレイ曲選択へ戻る
-              break;
-          }
-          move = true;                   //操作があった状態へ
-        }
-     
-        if (move) delay(300);  //操作があったら150msまつ(連続入力防止)
-        break;
-        
-      case PLAY:                      /*プレイ中*/
-        if(music.isPlaying() == false && pause_now){  //再生されていなかったら
-          music.play();                                 //再生する
-          pause_now = false;
-        }
-        /*UIの表示*/
-        if(fret1) image(image_back_note1, f1_x, height - (height/10), width/5, height/5);
-        if(fret2) image(image_back_note2, f2_x, height - (height/10), width/5, height/5);
-        if(fret3) image(image_back_note3, f3_x, height - (height/10), width/5, height/5);
-
-        pw.fill(200);
-        pw.rect(width/2, height-note_line, width, 10);
-        pw.textSize(width/15);
-        pw.text(score, width/4, height/6);
-        pw.text(combo + "combo!", width*2/3, height/6);
-        if(music.isPlaying() == false && position == 0){  //再生されていなかったら
-          music.play();                                     //再生する
-        }
-        position = music.position();    //現在の再生位置を取得
-        for (Note note : List_play) {     //ノーツの分だけループ
-          if(note.time > position + 10000/notes_speed && note.time_finish > position + 10000/notes_speed) break;  //結構先だったらすきっぷ
-          else if(note.time > position - 10000/notes_speed || note.time_finish > position - 10000/notes_speed){          //結構前じゃなければ
-            note.movePlay();                //出現と移動            
-            if (note.is || note.is_finish || note.end_finish == false) {  //画面内だったら
-              note.pw_displayPlay();              //ノーツの表示
-              if(pick == true && keep == false){  //押し始めだったら
-                keep = true;                        //長押し状態に
-                if(note.f_1 == fret1 && note.f_2 == fret2 && note.f_3 == fret3){  //フレット状態がすべてあっていたら
-                  if(shift < 50){      //パーフェクト判定
-                    score+=(score_perfect*(float)(10 + combo/50)/10);
-                    note.eva = 1;
-                    note.eva_count = 50;
-                    note.is = false;
-                    note.end = true;
-                  }
-                  else if(shift < 100){  //グレート判定
-                    score+=(score_great*(float)(10 + combo/50)/10);
-                    note.eva = 2;
-                    note.eva_count = 50;
-                    note.is = false;
-                    note.end = true;
-                  }
-                  else if(shift < 150){  //グッド判定
-                    score+=(score_good*(float)(10 + combo/50)/10);
-                    note.eva = 3;
-                    note.eva_count = 50;
-                    note.is = false;
-                    note.end = true;
-                  }
-                  combo++;
-                  //break;
-                }
-              }
-              else if(pick == true && keep == true){    //長押し中だったら
-                if(note.time_finish > 0 && note.end == true && note.end_finish != true){  //長押しノーツだったら
-                  if(shift_long > 200){                                                     //終わりが近くなかったら
-                    if(note.f_1 != fret1 || note.f_2 != fret2 || note.f_3 != fret3){          //フレット状態がどれか間違っていたら
-                      note.is_finish = false;  //ノーツを消す
-                      note.end_finish = true;
-                      combo = 0;
-                    }
-                  }
-                }
-              }
-              else if(pick == false && keep == true){   //離したら
-                keep = false;                             //長押し状態を解除
-                if(note.time_finish > 0){                   //長押しノーツだったら
-                  if(note.f_1 == fret1 && note.f_2 == fret2 && note.f_3 == fret3){  //フレット状態がすべてあっていたら
-                    if(shift_long < 50){
-                      score+=(score_perfect*(float)(10 + combo/50)/10);
-                      note.eva = 1;
-                      note.eva_count = 50;
-                      note.eva_pos = note_line;
-                      note.is_finish = false;
-                      note.end_finish = true;
-                    }
-                    else if(shift_long < 100){
-                      score+=(score_great*(float)(10 + combo/50)/10);
-                      note.eva = 2;
-                      note.eva_count = 50;
-                      note.eva_pos = note_line;
-                      note.is_finish = false;
-                      note.end_finish = true;
-                    }
-                    else if(shift_long < 150){
-                      score+=(score_good*(float)(10 + combo/50)/10);
-                      note.eva = 1;
-                      note.eva_count = 50;
-                      note.eva_pos = note_line;
-                      note.is_finish = false;
-                      note.end_finish = true;
-                    }
-                    combo++;
-                    //break;
-                  }  
-                }
-              } 
-            }
-            if(note.eva_count > 0){    //判定テキストが表示状態だったら
-              note.pw_displayEva();
-            }
-          }
-        }
-        if(music.isPlaying() == false && pause_now == false){  //再生が終わっていたら
-          saveScore();                     //プレイを記録
-          getRank();                       //ランキングを取得
-          mode = MODE.RESULT_PLAY;         //プレイ結果へ移行
-          select = 0;                      //選択を初期化
-          step = 0;                        //状態を初期化
-          wait = 100;                     //待ち時間を設定
-          view_rank = playing_music.play_count;
-        }
-        break;
-    }
-  } 
 }
