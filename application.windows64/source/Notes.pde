@@ -1,4 +1,4 @@
-class Note            /*ノーツのクラス*/
+public class Note            /*ノーツのクラス*/
 {
   boolean is = false;          //画面内かどうか
   boolean end = false;         //過ぎたかどうか
@@ -16,7 +16,7 @@ class Note            /*ノーツのクラス*/
   int eva_count = 0;           //判定テキストの存在時間
   
   /*プレイ中の移動と出現*/
-  void movePlay()
+  public void movePlay()
   {
     /*出現*/
     shift = time - position;
@@ -83,7 +83,7 @@ class Note            /*ノーツのクラス*/
   }
   
   /*ノーツの表示*/
-  void displayPlay()
+  public void displayPlay()
   {
     /*長押しノーツの長押し部分の表示*/
     if(time_finish > 0){
@@ -160,7 +160,7 @@ class Note            /*ノーツのクラス*/
  
   
   /*評価テキストの表示*/
-  void displayEva()
+  public void displayEva()
   {
     int effect_size = (50-eva_count)*width/200;
     /*判定テキストの表示*/

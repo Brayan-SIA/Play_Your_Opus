@@ -1,34 +1,63 @@
-import ddf.minim.*;    //音源ファイル操作用ライブラリ
-import ddf.minim.ugens.*;    //音源ファイル操作用ライブラリ
-import controlP5.*;    //GUI作成用ライブラリ(クリックできるボタンなど)
-import javax.swing.*;  //ファイル処理のライブラリ
-import java.io.FileWriter;  //ファイル書き込み用ライブラリ
-import java.io.IOException;  //例外処理用
-import javax.swing.*;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
-import java.awt.Toolkit;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
+import processing.core.*; 
+import processing.data.*; 
+import processing.event.*; 
+import processing.opengl.*; 
+
+import ddf.minim.*; 
+import ddf.minim.ugens.*; 
+import controlP5.*; 
+import javax.swing.*; 
+import java.io.FileWriter; 
+import java.io.IOException; 
+import javax.swing.*; 
+import java.awt.event.WindowAdapter; 
+import java.awt.event.WindowEvent; 
+import java.awt.Toolkit; 
+import java.lang.reflect.InvocationTargetException; 
+import java.lang.reflect.Method; 
 import processing.serial.*; 
+
+import java.util.HashMap; 
+import java.util.ArrayList; 
+import java.io.File; 
+import java.io.BufferedReader; 
+import java.io.PrintWriter; 
+import java.io.InputStream; 
+import java.io.OutputStream; 
+import java.io.IOException; 
+
+public class GameManager extends PApplet {
+
+    //音源ファイル操作用ライブラリ
+    //音源ファイル操作用ライブラリ
+    //GUI作成用ライブラリ(クリックできるボタンなど)
+  //ファイル処理のライブラリ
+  //ファイル書き込み用ライブラリ
+  //例外処理用
+
+
+
+
+
+
+ 
 
 Serial myPort;    /*宣言*/
 
 Minim minim;                  //minim変数
 AudioPlayer music;            //プレイ中の音楽
-AudioPlayer sound_select;     //選択音
-AudioPlayer sound_enter;      //決定音
+AudioSample sound_select;     //選択音
+AudioSample sound_enter;      //決定音
+AudioSample sound_hit;        //演奏音
 AudioPlayer show_music;       //選択中に流す曲
 Music playing_music;          //プレイ中の曲
-Sampler sampler;
-AudioOutput audio_output;
 
 boolean m_play = false;       //再生中か否か
 
 PFont font;
 
 ControlP5 Button;                        //GUI作成用ライブラリ宣言
-color color_off = color(160, 160, 160);  //スイッチなどがフォーカスされていないときの色
+int color_off = color(160, 160, 160);  //スイッチなどがフォーカスされていないときの色
 
 /*画像*/
 PImage image_note1;          //第一フレット
@@ -48,6 +77,7 @@ PImage image_great;          //グレイト判定の画像
 PImage image_good;           //グッド判定の画像
 
 /*設定情報*/
+FileManager fm;
 ArrayList<Music> List_music;   //フォルダ内にある曲のリスト
 ArrayList<Note> List_play;    //現在プレイ中の曲情報
 ArrayList<Note> List_tmp;     //リスト削除時の退避用
@@ -96,11 +126,11 @@ float f3_x;
 
 float note_line = 100;        //判定ライン
 
-void settings(){
+public void settings(){
   fullScreen(P2D);      //初期画面サイズ指定
 }
 
-void setup()
+public void setup()
 { 
   //myPort = new Serial(this, "COM8", 9600); //シリアル通信設定 ※Arduinoと同じにする
   
@@ -115,11 +145,9 @@ void setup()
   font = createFont("font\\PixelMplus12-Bold.ttf", 48);  //基本となるフォントを用意
   
   minim = new Minim(this);                        //minimの初期化
-  sound_select = minim.loadFile("sound\\select.wav");    //効果音ファイルを読み込む 
-  sound_select.rewind();                          //再生位置を先頭へ戻す
-  minim = new Minim(this);                        //minimの初期化
-  sound_enter = minim.loadFile("sound\\enter.wav");      //効果音ファイルを読み込む 
-  sound_enter.rewind();                           //再生位置を先頭へ戻す
+  sound_select = minim.loadSample("sound\\select.wav");    //効果音ファイルを読み込む
+  sound_enter = minim.loadSample("sound\\enter.wav");      //効果音ファイルを読み込む
+  sound_hit = minim.loadSample("sound\\hit.wav");          //効果音ファイルを読み込む 
 
   image_note1 = loadImage("image\\note1.png");  //ノーツの画像を読み込む
   image_note2 = loadImage("image\\note2.png");  //ノーツの画像を読み込む
@@ -137,6 +165,7 @@ void setup()
   image_great = loadImage("image\\great.png");  //判定画像を読み込む
   image_good = loadImage("image\\good.png");  //判定画像を読み込む
 
+  fm = new FileManager();
   List_music = new ArrayList<Music>();    //曲のリストを用意
   List_play = new ArrayList<Note>();     //プレイ中のNotesのリストを用意
   List_tmp = new ArrayList<Note>();      //退避用のリストを用意
@@ -154,7 +183,18 @@ void setup()
   button_select_record = createButton("buttonRecord", "RECORD", width/2, 0, width/2, height, color_off, color(127, 191, 255), color(255), color(255, 191, 127), 200);  //選択画面でのPLAYボタン
 }
 
-void draw()
+public void stop()
+{
+  music.close();
+  show_music.close();
+  sound_select.close();
+  sound_enter.close();
+  sound_hit.close();
+  minim.stop();
+  super.stop();
+}
+
+public void draw()
 { 
   //get_input();
   
@@ -162,13 +202,13 @@ void draw()
 }
 
 /*入力*/
-void get_input()
+public void get_input()
 {
   String get_data = myPort.readStringUntil('\n');  //改行文字まで読み込む(1行よむ)
   
   if(get_data != null){                            //何かあったら
       get_data = trim(get_data);                     //改行文字を削る
-      int[] data = int(split(get_data, ','));        //カンマ区切りで取り出す
+      int[] data = PApplet.parseInt(split(get_data, ','));        //カンマ区切りで取り出す
       if(data.length >= 4){
       if(data[0] == 1) fret1 = true; 
       else fret1 = false;
@@ -208,7 +248,7 @@ public void drawPlayWindow()
         move = false;          //操作があったかどうかの変数
         if (fret1 && select > 0) {     //一番最初を選択していない状態で第一フレットが押されたら
           select--;                      //選択中のインデックスを一つ上に
-          sound_select.play(0);           //効果音を再生
+          sound_select.trigger();           //効果音を再生
           if(show_music != null)show_music.close();
           show_music = minim.loadFile("music\\" + List_music.get(select).name + ".mp3");      //効果音ファイルを読み込む 
           show_music.setGain(-10);        //音量を設定
@@ -218,7 +258,7 @@ public void drawPlayWindow()
         }
         else if(fret1 && select == 0){
           select = List_music.size() - 1;
-          sound_select.play(0);           //効果音を再生
+          sound_select.trigger();           //効果音を再生
           if(show_music != null)show_music.close();
           show_music = minim.loadFile("music\\" + List_music.get(select).name + ".mp3");      //効果音ファイルを読み込む 
           show_music.setGain(-10);        //音量を設定
@@ -228,7 +268,7 @@ public void drawPlayWindow()
         }
         if (fret3 && select < List_music.size() - 1) {  //一番最後を選択していない状態で第三フレットがおされたら
           select++;                      //選択中のインデックスを一つ下へ
-          sound_select.play(0);           //効果音を再生
+          sound_select.trigger();           //効果音を再生
           if(show_music != null)show_music.close();
           show_music = minim.loadFile("music\\" + List_music.get(select).name + ".mp3");      //効果音ファイルを読み込む 
           show_music.rewind();            //再生位置を先頭へ戻す
@@ -238,7 +278,7 @@ public void drawPlayWindow()
         }
         else if(fret3 && select == List_music.size()-1){
           select = 0;
-          sound_select.play(0);           //効果音を再生
+          sound_select.trigger();           //効果音を再生
           if(show_music != null)show_music.close();
           show_music = minim.loadFile("music\\" + List_music.get(select).name + ".mp3");      //効果音ファイルを読み込む 
           show_music.rewind();            //再生位置を先頭へ戻す
@@ -250,10 +290,10 @@ public void drawPlayWindow()
           displaySelect();                 //選択画面を表示        
 
           if (pick) {                      //弦が押されたら
-            sound_enter.play(0);              //効果音を再生
+            sound_enter.trigger();              //効果音を再生
             if(show_music != null) show_music.close();
             selectMusic();                   //曲選択
-            loadRecord();                    //ノーツを読み込む
+            List_play = fm.loadRecord(playing_music.name);                    //ノーツを読み込む
             move = true;                     //操作があった状態へ
           }
         }
@@ -264,19 +304,19 @@ public void drawPlayWindow()
         move = false;          //操作があったかどうかの変数
         if (fret1 && select > 0) {     //一番最初を選択していない状態で第一フレットが押されたら
           select--;                      //選択中のインデックスを一つ上に
-          sound_select.play(0);           //効果音を再生
+          sound_select.trigger();           //効果音を再生
           move = true;                   //操作があった状態へ
         }
         if (fret3 && select < 3) {  //一番最後を選択していない状態で第三フレットがおされたら
           select++;                      //選択中のインデックスを一つ下へ
-          sound_select.play(0);           //効果音を再生
+          sound_select.trigger();           //効果音を再生
           move = true;                   //操作があった状態へ
         }
       
         displaySelect();  //メニューを表示
       
         if (pick) {                      //弦が押されたら
-          sound_enter.play(0);              //効果音を再生
+          sound_enter.trigger();              //効果音を再生
           switch(select){                  //選択項目を確認
             case 0:                         /*再開*/
               mode = MODE.PLAY;             //プレイ中に戻す
@@ -302,8 +342,8 @@ public void drawPlayWindow()
               count = 180;                  //カウントダウン
               break;
             case 3:                       /*曲選択へ戻る*/
-              reset();                      //初期化
               mode = MODE.SELECT_PLAY;      //モード選択へ戻る
+              reset();                      //初期化
               break;
           }
           delay(500);
@@ -368,8 +408,10 @@ public void drawPlayWindow()
                     note.end = true;
                   }
                   combo++;
+                  sound_hit.trigger();              //効果音を再生
                   //break;
                 }
+                
               }
               else if(pick == true && keep == true){    //長押し中だったら
                 if(note.time_finish > 0 && note.end == true && note.end_finish != true){  //長押しノーツだったら
@@ -411,6 +453,7 @@ public void drawPlayWindow()
                       note.end_finish = true;
                     }
                     combo++;
+                    sound_hit.trigger();              //効果音を再生
                     //break;
                   }  
                 }
@@ -422,8 +465,8 @@ public void drawPlayWindow()
           }
         }
         if(music.isPlaying() == false && pause_now == false){  //再生が終わっていたら
-          saveScore();                     //プレイを記録
-          getRank();                       //ランキングを取得
+          fm.saveScore(playing_music.name, score);                     //プレイを記録
+          fm.getRank(playing_music.name, score);                       //ランキングを取得
           mode = MODE.RESULT_PLAY;         //プレイ結果へ移行
           select = 0;                      //選択を初期化
           step = 0;                        //状態を初期化
@@ -478,34 +521,30 @@ public void drawPlayWindow()
         move = false;          //操作があったかどうかの変数
         if (fret1 && select > 0) {     //一番最初を選択していない状態で第一フレットが押されたら
           select--;                      //選択中のインデックスを一つ上に
-          sound_select.play(0);           //効果音を再生
+          sound_select.trigger();           //効果音を再生
           move = true;                   //操作があった状態へ
         }
         else if (fret1 && select == 0) {     //一番最初を選択状態で第一フレットが押されたら
           select = List_music.size() - 1;    //選択中のインデックスを一番下に
-          sound_select.play(0);           //効果音を再生
+          sound_select.trigger();           //効果音を再生
           move = true;                   //操作があった状態へ
         }
         if (fret3 && select < List_music.size() - 1) {  //一番最後を選択していない状態で第三フレットがおされたら
           select++;                      //選択中のインデックスを一つ下へ
-          sound_select.play(0);           //効果音を再生
+          sound_select.trigger();           //効果音を再生
           move = true;                   //操作があった状態へ
         }
         else if (fret3 && select == 0) {  //一番最後を選択状態で第三フレットがおされたら
           select=0;                      //選択中のインデックスを一番上に
-          sound_select.play(0);           //効果音を再生
+          sound_select.trigger();           //効果音を再生
           move = true;                   //操作があった状態へ
         }
         if (List_music.size() > 0) {     //曲のリストに一つ以上曲が入っていたら
           displaySelect();                 //選択画面を表示        
 
           if (pick) {                      //弦が押されたら
-            sound_enter.play(0);              //効果音再生
+            sound_enter.trigger();              //効果音再生
             selectMusic();                   //曲選択
-            sampler = new Sampler("music\\" + List_music.get(select).name + ".mp3", 4, minim);
-            audio_output = minim.getLineOut();
-            sampler.rate.setLastValue(0.5);
-            sampler.patch(audio_output);
             move = true;                     //操作があった状態へ
           }
         }
@@ -516,19 +555,19 @@ public void drawPlayWindow()
         move = false;          //操作があったかどうかの変数
         if (fret1 && select > 0) {     //一番最初を選択していない状態で第一フレットが押されたら
           select--;                      //選択中のインデックスを一つ上に
-          sound_select.play(0);          //効果音を再生
+          sound_select.trigger();          //効果音を再生
           move = true;                   //操作があった状態へ
         }
         if (fret3 && select < 3) {  //一番最後を選択していない状態で第三フレットがおされたら
           select++;                      //選択中のインデックスを一つ下へ
-          sound_select.play(0);          //効果音を再生
+          sound_select.trigger();          //効果音を再生
           move = true;                   //操作があった状態へ
         }
       
         displaySelect();  //メニューを表示
       
         if (pick) {                      //弦が押されたら
-          sound_enter.play(0);           //効果音を再生
+          sound_enter.trigger();           //効果音を再生
           switch(select){  //選択項目を確認
             case 0:                       /*再開*/
               mode = MODE.RECORD;           //レコード中に戻す
@@ -539,7 +578,7 @@ public void drawPlayWindow()
               save_combo = combo;
               save_score = score;
               mode = MODE.RECORD;           //レコード中に戻す
-              saveRecord();
+              fm.saveRecord(playing_music.name, List_play, combo);
               count = 180;                  //カウントダウン
               break;
             case 2:                       /*最後の記録からやり直し*/
@@ -559,8 +598,8 @@ public void drawPlayWindow()
               count = 180;                  //カウントダウン
               break;
             case 3:                       /*曲選択へ戻る*/
-              reset();                      //初期化
               mode = MODE.SELECT_RECORD;    //レコード曲選択へ戻る
+              reset();                      //初期化
               break;
           }
           move = true;                   //操作があった状態へ
@@ -599,6 +638,7 @@ public void drawPlayWindow()
           List_play.add(new_note);
           new_note.is = true;
           combo++;
+          sound_hit.trigger();              //効果音を再生
           score+=(score_perfect*(float)(10 + combo/50)/10);
         }
         else if(pick == true && keep == true){    //長押し中だったら
@@ -614,6 +654,7 @@ public void drawPlayWindow()
             new_note.time_finish = position;
             new_note.is_finish = true;
             combo++;
+            sound_hit.trigger();              //効果音を再生
             score+=(score_perfect*(float)(10 + combo/10)/10);
           }
         }
@@ -640,28 +681,28 @@ public void drawPlayWindow()
         move = false;                //操作があったかどうかの変数
         if (fret1 && select > 0) {     //一番最初を選択していない状態で第一フレットが押されたら
           select--;                      //選択中のインデックスを一つ上に
-          sound_select.play(0);          //効果音を再生
+          sound_select.trigger();          //効果音を再生
           move = true;                   //操作があった状態へ
         }
         if (fret3 && select < 1) {  //一番最後を選択していない状態で第三フレットがおされたら
           select++;                      //選択中のインデックスを一つ下へ
-          sound_select.play(0);          //効果音を再生
+          sound_select.trigger();          //効果音を再生
           move = true;                   //操作があった状態へ
         }
       
         displaySelect();  //メニューを表示
         
         if (pick) {                  //弦が押されたら
-          sound_enter.play(0);         //効果音を再生
+          sound_enter.trigger();         //効果音を再生
           switch(select){              //選択項目を確認
             case 0:                      //保存して戻る
-              saveRecord();                //レコードファイルを保存
-              reset();                     //初期化
+              fm.saveRecord(playing_music.name, List_play, combo);                //レコードファイルを保存
               mode = MODE.SELECT_RECORD;   //レコード曲選択へ戻る
+              reset();                     //初期化
               break;
             case 1:                      //保存せずに戻る
-              reset();                     //初期化
               mode = MODE.SELECT_RECORD;   //レコード曲選択へ戻る
+              reset();                     //初期化
               break;
           }  
           move = true;                   //操作があった状態へ
@@ -675,7 +716,7 @@ public void drawPlayWindow()
 
 
 /*初期化（曲選択へ戻る準備）*/
-void reset()
+public void reset()
 {
   //変数の初期化など
   position = 0;
@@ -683,7 +724,7 @@ void reset()
   save_pos = 0;
   List_play.clear();
   List_music.clear();
-  loadMusic();
+  List_music = fm.loadMusic(mode);
   score = 0;
   combo = 0;
 }
@@ -693,7 +734,7 @@ void reset()
 //  m.read();
 //}
 
-void displaySelect()
+public void displaySelect()
 {
   switch(mode){
     case SELECT_PLAY:
@@ -833,7 +874,7 @@ void displaySelect()
 }
 
 /*曲を選択・再生する関数*/
-void selectMusic()
+public void selectMusic()
 {
   switch(mode) {                                //モードを確認
     case SELECT_PLAY:                               /*プレイ曲選択状態*/
@@ -857,175 +898,14 @@ void selectMusic()
   }
 }
 
-/*スコアの書き込み*/
-void saveScore()
-{
-  try{
-    File score_file = new File(dataPath("rank") + "\\" + playing_music.name + ".rank");
-    if(score_file.exists() && score_file.isFile() && score_file.canWrite()){
-      FileWriter file_writer = new FileWriter(score_file, true);
-      
-      file_writer.write(score+"\n");
-      playing_music.play_count++;
-      
-      file_writer.close();
-    }
-  }catch(IOException e){
-    System.out.println(e);
-  }
-}
-
-/*ランキングの取得*/
-void getRank(){
-  rank = 1;
-  String read_file[] = loadStrings("rank\\" + playing_music.name + ".rank");    //ファイルを読み込む
-  for(int j = 1; j < read_file.length; j++){      //各行を参照
-    int data = Integer.parseInt(read_file[j]);
-    if(data > score) rank++;                        //スコアが今回より高かったら順位を下げる
-  }
-}
-
-/*レコードファイルの読み込み*/
-void loadRecord()
-{
-  String read_file[] = loadStrings("notes\\" +  playing_music.name +".csv");    //CSVファイルを読み込む
-  
-  List_play.clear();
-  
-  for(int i = 0; i < read_file.length; i++){      //各行を参照
-    String [] columm = split(read_file[i], ',');    //カンマ区切りで配列に格納
-    
-    new_note = new Note();                              //新しいノーツを用意
-    
-    /*各要素の読み込み*/
-    new_note.time = Integer.parseInt(columm[0]);
-    new_note.time_finish = Integer.parseInt(columm[1]);
-    if(Integer.parseInt(columm[2]) == 1) new_note.f_1 = true;
-    else new_note.f_1 = false;
-    if(Integer.parseInt(columm[3]) == 1) new_note.f_2 = true;
-    else new_note.f_2 = false;
-    if(Integer.parseInt(columm[4]) == 1) new_note.f_3 = true;
-    else new_note.f_3 = false;
-    
-    List_play.add(new_note);
-  }
-}
-
-/*レコードファイルの出力*/
-void saveRecord()
-{
-  record_file = createWriter("notes\\" + playing_music.name + ".csv");
-  
-  for(Note n : List_play){
-    record_file.print(n.time);
-    record_file.print(",");
-    record_file.print(n.time_finish);
-    record_file.print(",");
-    
-    if(n.f_1){
-      record_file.print(1);
-    }
-    else{
-      record_file.print(0);
-    }
-    record_file.print(",");
-    
-    if(n.f_2){
-      record_file.print(1);
-    }
-    else{
-      record_file.print(0);
-    }
-    record_file.print(",");
-    
-    if(n.f_3){
-      record_file.println(1);
-    }
-    else{
-      record_file.println(0);
-    }
-  }
-  
-  record_file.flush();
-  record_file.close();
-  
-  rank_file = createWriter("rank\\" + playing_music.name + ".rank");
-  rank_file.println(combo);
-  //rank_file.println(score);
-  rank_file.flush();
-  rank_file.close();
-}
-
-/*フォルダ内の曲を読み込む関数*/
-void loadMusic()
-{
-  File dir;
-  File[] files;
-  switch(mode){
-    case SELECT_PLAY:
-      dir = new File(dataPath("rank"));
-      files = dir.listFiles();        //フォルダ内のファイルを配列に入れる
-      if(files.length == 0){
-          mode = MODE.SELECT_MODE;
-          showButtons();
-          break;
-      }
-      for (int i = 0; i < files.length; i++) {     //ファイル数分ループする
-        if (files[i].getPath().endsWith(".rank")) {    //.rankでおわるファイルだったら
-          Music music = new Music();
-          music.name = files[i].getName().substring(0, files[i].getName().lastIndexOf('.'));
-          String read_file[] = loadStrings(dataPath("rank") + "\\" + music.name + ".rank");    //ファイルを読み込む
-          music.notes_count = Integer.parseInt(read_file[0]);        //ノーツ数を読み込む
-          long sum_score = 0;                                //合計得点（平均計算用）
-          for(int j = 1; j < read_file.length; j++){      //各行を参照
-            int data = Integer.parseInt(read_file[j]);
-            sum_score+=data;                              //得点を加算
-            music.play_count++;                           //プレイ回数をカウント
-            music.checkRank(data);                        //ランキングを更新
-          }
-          music.max_score = 0;
-          for(int j = 0; j < music.notes_count; j++){
-            combo++;
-            music.max_score+=(score_perfect*(float)(10 + combo/50)/10);
-          }
-          combo = 0;
-          if(music.play_count > 0){
-            music.avg_score = (int)sum_score / music.play_count;  //平均点を求める
-            if(music.avg_score > music.max_score*9/10) music.level = 1;
-            else if(music.avg_score < music.max_score/2)music.level = 10 - (int)(((float)(music.avg_score-music.max_score/2) / (float)(music.max_score))*10);
-            else music.level = 10 - (int)(((float)(music.avg_score) / (float)(music.max_score))*10);
-          }
-          List_music.add(music);                    //曲リストに加える
-        }
-      }
-      break;
-    case SELECT_RECORD:
-      dir = new File(dataPath("music"));
-      files = dir.listFiles();        //フォルダ内のファイルを配列に入れる
-      if(files.length == 0){
-          mode = MODE.SELECT_MODE;
-          showButtons();
-          break;
-      }
-      for (int i = 0; i < files.length; i++) {     //ファイル数分ループする
-        if (files[i].getPath().endsWith(".mp3")) {    //.mp3でおわるファイルだったら
-          Music music = new Music();
-          music.name = files[i].getName().substring(0, files[i].getName().lastIndexOf('.'));
-          List_music.add(music);                    //曲リストに加える
-        }
-      }
-      break;   
-  }
-}
-
 /*画面サイズを変更する関数*/
-void changeWindowSize(int w, int h) {
+public void changeWindowSize(int w, int h) {
   frame.setSize( w + frame.getInsets().left + frame.getInsets().right, h + frame.getInsets().top + frame.getInsets().bottom );
   settings();
 }
 
 /*ボタンを定義する関数*/
-Button createButton(String name, String lab, float x, float y, int s_x, int s_y, color bg_c, color fg_c, color lab_c, color ac_c, int f_size)
+public Button createButton(String name, String lab, float x, float y, int s_x, int s_y, int bg_c, int fg_c, int lab_c, int ac_c, int f_size)
 {
   Button button = Button.addButton(name)  //ボタンを追加
     .setLabel(lab)                          //ボタン内のテキストを設定
@@ -1040,7 +920,7 @@ Button createButton(String name, String lab, float x, float y, int s_x, int s_y,
 }
 
 /*キーが押されたときの関数*/
-void keyPressed()
+public void keyPressed()
 {
   if (key == 'a') fret1 = true;  //aが押されていたら第一フレットをtrueに
   if (key == 's') fret2 = true;  //sが押されていたら第二フレットをtrueに
@@ -1049,7 +929,7 @@ void keyPressed()
   if (key == ' ') pause = true;  //スペースが押されていたらPAUSEをtrueに
 }
 /*キーが離されたときの関数*/
-void keyReleased()
+public void keyReleased()
 {
   if (key == 'a') fret1 = false;  //aが離されたら第一フレットをfalseに
   if (key == 's') fret2 = false;  //sが離されたら第二フレットをfalseに
@@ -1058,39 +938,559 @@ void keyReleased()
   if (key == ' ') pause = false;  //スペースが押されていたらPAUSEをtrueに
 }
 
-void showButtons()
+public void showButtons()
 {
   button_select_play.show();                                    //モード選択PLAYボタンを表示
   button_select_record.show();                                  //モード選択RECORDボタンを表示
 }
 
-void hideButtons()
+public void hideButtons()
 {
   button_select_play.hide();                                    //モード選択PLAYボタンを隠す
   button_select_record.hide();                                  //モード選択RECORDボタンを隠す
 }
 
 /*モード選択PLAYボタンが押されたときの関数*/
-void buttonPlay()
+public void buttonPlay()
 {
-  sound_enter.play(0);           //効果音を再生
+  sound_enter.trigger();           //効果音を再生
   mode = MODE.SELECT_PLAY;                                     //モードをスタイル選択に
   hideButtons();
   surface.setLocation(0, 0);                                    //画面の位置を左上に持っていく
-  loadMusic();
+  List_music = fm.loadMusic(mode);
   f1_x = width/4;
   f2_x = width/4*2;
   f3_x = width/4*3;
 }
 /*モード選択RECORDボタンが押されたときの関数*/
-void buttonRecord()
+public void buttonRecord()
 {
-  sound_enter.play(0);           //効果音を再生
+  sound_enter.trigger();           //効果音を再生
   mode = MODE.SELECT_RECORD;                                    //モードをレコード曲選択に
   hideButtons();
   surface.setLocation(0, 0);                                    //画面の位置を左上に持っていく
-  loadMusic();
+  List_music = fm.loadMusic(mode);
   f1_x = width/6;
   f2_x = width/6*2;
   f3_x = width/6*3;
+}
+public class FileManager
+{
+
+  /*スコアの書き込み*/
+  public void saveScore(String name, int score)
+  {
+    try {
+      File score_file = new File(dataPath("rank") + "\\" + name + ".rank");
+      if (score_file.exists() && score_file.isFile() && score_file.canWrite()) {
+        FileWriter file_writer = new FileWriter(score_file, true);
+
+        file_writer.write(score+"\n");
+        playing_music.play_count++;
+
+        file_writer.close();
+      }
+    }
+    catch(IOException e) {
+      System.out.println(e);
+    }
+  }
+
+  /*ランキングの取得*/
+  public void getRank(String name, int score) 
+  {
+    rank = 1;
+    String read_file[] = loadStrings("rank\\" + name + ".rank");    //ファイルを読み込む
+    for (int j = 1; j < read_file.length; j++) {      //各行を参照
+      int data = Integer.parseInt(read_file[j]);
+      if (data > score) rank++;                        //スコアが今回より高かったら順位を下げる
+    }
+  }
+
+  /*レコードファイルの読み込み*/
+  public ArrayList<Note> loadRecord(String name)
+  {
+    String read_file[] = loadStrings("notes\\" +  name +".csv");    //CSVファイルを読み込む
+
+    ArrayList<Note> List_Notes = new ArrayList<Note>();
+
+    for (int i = 0; i < read_file.length; i++) {      //各行を参照
+      String [] columm = split(read_file[i], ',');    //カンマ区切りで配列に格納
+
+      new_note = new Note();                              //新しいノーツを用意
+
+      /*各要素の読み込み*/
+      new_note.time = Integer.parseInt(columm[0]);
+      new_note.time_finish = Integer.parseInt(columm[1]);
+      if (Integer.parseInt(columm[2]) == 1) new_note.f_1 = true;
+      else new_note.f_1 = false;
+      if (Integer.parseInt(columm[3]) == 1) new_note.f_2 = true;
+      else new_note.f_2 = false;
+      if (Integer.parseInt(columm[4]) == 1) new_note.f_3 = true;
+      else new_note.f_3 = false;
+
+      List_Notes.add(new_note);
+    }
+    
+    return List_Notes;
+  }
+
+  /*レコードファイルの出力*/
+  public void saveRecord(String name, ArrayList<Note> List_Notes, int combo)
+  {
+    record_file = createWriter("data\\notes\\" + name + ".csv");
+
+    for (Note n : List_Notes) {
+      record_file.print(n.time);
+      record_file.print(",");
+      record_file.print(n.time_finish);
+      record_file.print(",");
+
+      if (n.f_1) {
+        record_file.print(1);
+      } else {
+        record_file.print(0);
+      }
+      record_file.print(",");
+
+      if (n.f_2) {
+        record_file.print(1);
+      } else {
+        record_file.print(0);
+      }
+      record_file.print(",");
+
+      if (n.f_3) {
+        record_file.println(1);
+      } else {
+        record_file.println(0);
+      }
+    }
+
+    record_file.flush();
+    record_file.close();
+
+    rank_file = createWriter("data\\rank\\" + name + ".rank");
+    rank_file.println(combo);
+    //rank_file.println(score);
+    rank_file.flush();
+    rank_file.close();
+  }
+
+  /*フォルダ内の曲を読み込む関数*/
+  public ArrayList<Music> loadMusic(MODE mode)
+  {
+    File dir;
+    File[] files;
+    ArrayList<Music> List_music = new ArrayList<Music>();
+    switch(mode) {
+      case SELECT_PLAY:
+        dir = new File(dataPath("rank"));
+        files = dir.listFiles();        //フォルダ内のファイルを配列に入れる
+        if (files.length == 0) {
+          mode = MODE.SELECT_MODE;
+          showButtons();
+          break;
+        }
+        for (int i = 0; i < files.length; i++) {     //ファイル数分ループする
+          if (files[i].getPath().endsWith(".rank")) {    //.rankでおわるファイルだったら
+            Music music = new Music();
+            music.name = files[i].getName().substring(0, files[i].getName().lastIndexOf('.'));
+            String read_file[] = loadStrings(dataPath("rank") + "\\" + music.name + ".rank");    //ファイルを読み込む
+            music.notes_count = Integer.parseInt(read_file[0]);        //ノーツ数を読み込む
+            long sum_score = 0;                                //合計得点（平均計算用）
+            for (int j = 1; j < read_file.length; j++) {      //各行を参照
+              int data = Integer.parseInt(read_file[j]);
+              sum_score+=data;                              //得点を加算
+              music.play_count++;                           //プレイ回数をカウント
+              music.checkRank(data);                        //ランキングを更新
+            }
+            int combo = 0;
+            music.max_score = 0;
+            for (int j = 0; j < music.notes_count; j++) {
+              combo++;
+              music.max_score+=(score_perfect*(float)(10 + combo/50)/10);
+            }
+            if (music.play_count > 0) {
+              music.avg_score = (int)sum_score / music.play_count;  //平均点を求める
+              if (music.avg_score > music.max_score*9/10) music.level = 1;
+              else if (music.avg_score < music.max_score/2)music.level = 10 - (int)(((float)(music.avg_score-music.max_score/2) / (float)(music.max_score))*10);
+              else music.level = 10 - (int)(((float)(music.avg_score) / (float)(music.max_score))*10);
+            }
+            List_music.add(music);                    //曲リストに加える
+          }
+        }
+        break;
+      case SELECT_RECORD:
+        dir = new File(dataPath("music"));
+        files = dir.listFiles();        //フォルダ内のファイルを配列に入れる
+        if (files.length == 0) {
+          mode = MODE.SELECT_MODE;
+          showButtons();
+          break;
+        }
+        for (int i = 0; i < files.length; i++) {     //ファイル数分ループする
+          if (files[i].getPath().endsWith(".mp3")) {    //.mp3でおわるファイルだったら
+            Music music = new Music();
+            music.name = files[i].getName().substring(0, files[i].getName().lastIndexOf('.'));
+            List_music.add(music);                    //曲リストに加える
+          }
+        }
+        break;
+    }
+    return List_music;
+  }
+}
+
+public enum MODE    //モード判断用
+{
+  SELECT_MODE,
+  SELECT_PLAY,
+  PAUSE_PLAY,
+  PLAY,
+  RESULT_PLAY,
+  SELECT_RECORD,
+  PAUSE_RECORD,
+  RECORD,
+  RESULT_RECORD
+}
+public class Music
+{
+  String name;
+  int notes_count = 0;  //ノーツ数
+  int max_score = 0;    //最高点
+  int play_count = 0;   //プレイ回数
+  int avg_score = 0;    //平均点  
+  int level = 1;        //難易度1~10
+  int rank1_score = 0;  //1位の得点
+  int rank2_score = 0;  //2位の得点
+  int rank3_score = 0;  //3位の得点
+
+  public void checkRank(int new_score) {
+    if (new_score > rank1_score) {                 
+      rank3_score = rank2_score;
+      rank2_score = rank1_score;
+      rank1_score = new_score;
+    } else if (new_score < rank1_score && new_score > rank2_score) {
+      rank3_score = rank2_score;
+      rank2_score = new_score;
+    } else if (new_score < rank2_score && new_score > rank3_score) {
+      rank3_score = new_score;
+    }
+  }
+}
+
+public class Note            /*ノーツのクラス*/
+{
+  boolean is = false;          //画面内かどうか
+  boolean end = false;         //過ぎたかどうか
+  boolean is_finish = false;   //長押しの画面内かどうか
+  boolean end_finish = false;  //長押しの過ぎたかどうか
+  int time;                    //押すタイミング
+  int time_finish = 0;         //長押しの場合の終了位置 (0じゃなければ長押しノーツ)
+  boolean f_1 = false;         //第一フレットの状態
+  boolean f_2 = false;         //第二フレットの状態
+  boolean f_3 = false;         //第三フレットの状態
+  int pos=0;                   //画面上の位置
+  int pos_finish = 0;          //長押しの画面の位置
+  int eva = 0;                 //判定のテキスト
+  float eva_pos = note_line;   //判定テキストの位置
+  int eva_count = 0;           //判定テキストの存在時間
+  
+  /*プレイ中の移動と出現*/
+  public void movePlay()
+  {
+    /*出現*/
+    shift = time - position;
+    shift = (int)abs((float)shift);
+    if(height-note_line >=  notes_speed*(shift/(1000/frameRate)) && end == false && is == false){
+      is = true;
+      pos = (int)(height - note_line - notes_speed*(shift/(1000/frameRate)));
+    }
+    /*移動*/
+    if(is){              //画面内だったら
+      pos+=notes_speed;    //ノーツを移動
+      if(pos > height){    //画面最下を過ぎていたら(見逃し)
+        is = false;          //通常ノーツを非表示に
+        end = true;
+        is_finish = false;   //長押しノーツも非表示
+        end_finish = true;
+        combo = 0;
+        eva = 0;
+        eva_count = 50;
+      }
+    }
+    
+    /*長押しノーツ*/
+    if(time_finish > 0){  //長押しノーツだったら
+      /*出現 長押し*/
+      shift_long = time_finish - position;
+      shift_long = (int)abs((float)shift_long);
+      if(height-note_line >=  notes_speed*(shift_long/(1000/frameRate)) && end_finish == false && is_finish == false){
+        is_finish = true;
+        pos_finish = (int)(height - note_line - notes_speed*(shift_long/(1000/frameRate)));
+      }
+      /*移動　長押し*/
+      if(is_finish){
+        pos_finish+=notes_speed;
+        if(pos_finish > height){
+          is_finish = false;
+          end_finish = true;
+        }
+      }
+    }
+    else{
+      is_finish = false;
+      end_finish = true;
+      shift_long = 1000000;
+    }
+  }
+  
+  /*レコード中の移動*/
+  public void moveRecord()
+  {
+    if(is){
+      pos+=notes_speed;
+      if(pos > height){
+        is = false;
+      }
+    }
+    if(is_finish){
+      pos_finish+=notes_speed;
+      if(pos_finish > height){
+        is_finish = false;
+        end_finish = true;
+      }
+    }
+  }
+  
+  /*ノーツの表示*/
+  public void displayPlay()
+  {
+    /*長押しノーツの長押し部分の表示*/
+    if(time_finish > 0){
+      tint(255,150);  //半透明に                
+      if(end == true && end_finish != true){  //長押し中だったら
+        if(f_1 || f_2 || f_3){
+          if(f_1){
+            image(image_long_note1, f1_x, pos_finish+(height-note_line-pos_finish)/2, width/5, height-note_line-pos_finish);
+          }
+          if(f_2){
+            image(image_long_note2, f2_x, pos_finish+(height-note_line-pos_finish)/2, width/5, height-note_line-pos_finish);
+          }
+          if(f_3){
+            image(image_long_note3, f3_x, pos_finish+(height-note_line-pos_finish)/2, width/5, height-note_line-pos_finish);
+          }
+        }
+        else{
+          image(image_long_note4, f2_x, pos_finish+(height-note_line-pos_finish)/2, width*4/5, height-note_line-pos_finish);
+        }
+      }
+      else{  //流れてるだけの場合
+        if(f_1 || f_2 || f_3){
+          if(f_1){
+            image(image_long_note1, f1_x, pos_finish+(pos-pos_finish)/2, width/5, pos-pos_finish);
+          }
+          if(f_2){
+            image(image_long_note2, f2_x, pos_finish+(pos-pos_finish)/2, width/5, pos-pos_finish);
+          }
+          if(f_3){
+            image(image_long_note3, f3_x, pos_finish+(pos-pos_finish)/2, width/5, pos-pos_finish);
+          }
+        }
+        else{
+          image(image_long_note4, f2_x, pos_finish+(pos-pos_finish)/2, width*4/5, pos-pos_finish);
+        } 
+      }
+    }
+    /*通常ノーツの表示*/
+    tint(255,255);
+    if(is){
+      if(f_1 || f_2 || f_3){
+        if(f_1){
+          image(image_note1, f1_x, pos, width/5, height/100);
+        }
+        if(f_2){
+          image(image_note2, f2_x, pos, width/5, height/100);
+        }
+        if(f_3){
+          image(image_note3, f3_x, pos, width/5, height/100);
+        }
+      }
+      else{
+        image(image_note4, f2_x, pos, width*4/5, height/100);
+      }
+    }
+    /*長押しノーツ終了部分の表示*/
+    if(is_finish){
+      if(f_1 || f_2 || f_3){
+        if(f_1){
+          image(image_note1, f1_x, pos_finish, width/5, height/100);
+        }
+        if(f_2){
+          image(image_note2, f2_x, pos_finish, width/5, height/100);
+        }
+        if(f_3){
+          image(image_note3, f3_x, pos_finish, width/5, height/100);
+        }
+      }
+      else{
+        image(image_note4, f2_x, pos_finish, width*4/5, height/100);
+      } 
+    }
+  }
+ 
+  
+  /*評価テキストの表示*/
+  public void displayEva()
+  {
+    int effect_size = (50-eva_count)*width/200;
+    /*判定テキストの表示*/
+    switch(eva){
+      case 0:
+        if(eva_count > 25) fill(150,(50-eva_count)*5);  //だんだん濃くする
+        else fill(150, eva_count * 10);  //だんだん薄くする
+        textSize(width/45);
+        if(f_1) text("MISS", f1_x, height-eva_pos);
+        if(f_2) text("MISS", f2_x, height-eva_pos);
+        if(f_3) text("MISS", f3_x, height-eva_pos);
+        if(!f_1 && !f_2 && !f_3) text("MISS", f2_x, height-eva_pos);
+        break;
+      case 1:
+        if(eva_count > 25) fill(color(255,45,150),(50-eva_count)*5);  //だんだん濃くする
+        else fill(color(255,45,150), eva_count * 10);  //だんだん薄くする
+        textSize(width/35);
+        if(f_1){
+          text("PERFECT!!", f1_x, height-eva_pos);
+          image(image_perfect, f1_x, height - note_line, effect_size, effect_size);
+        }
+        if(f_2) {
+          text("PERFECT!!", f2_x, height-eva_pos);
+          image(image_perfect, f2_x, height - note_line, effect_size, effect_size);
+        }
+        if(f_3){
+          text("PERFECT!!", f3_x, height-eva_pos);
+          image(image_perfect, f3_x, height - note_line, effect_size, effect_size);
+        }
+        if(!f_1 && !f_2 && !f_3){
+          text("PERFECT!!", f2_x, height-eva_pos);
+          image(image_perfect, f2_x, height - note_line, effect_size*2, effect_size*2);
+        }
+        break;
+      case 2:
+        if(eva_count > 25) fill(color(255,191,127),(50-eva_count)*5);  //だんだん濃くする
+        else fill(color(255,191,127), eva_count * 10);  //だんだん薄くする
+        textSize(width/40);
+        if(f_1){
+          text("GREAT!", f1_x, height-eva_pos);
+          image(image_great, f1_x, height - note_line, effect_size, effect_size);
+        }
+        if(f_2) {
+          text("GREAT!", f2_x, height-eva_pos);
+          image(image_great, f2_x, height - note_line, effect_size, effect_size);
+        }
+        if(f_3){
+          text("GREAT!", f3_x, height-eva_pos);
+          image(image_great, f3_x, height - note_line, effect_size, effect_size);
+        }
+        if(!f_1 && !f_2 && !f_3){
+          text("GREAT!", f2_x, height-eva_pos);
+          image(image_great, f2_x, height - note_line, effect_size*2, effect_size*2);
+        }
+        break;
+      case 3:
+        if(eva_count > 25) fill(255,(50-eva_count)*5);  //だんだん濃くする
+        else fill(255, eva_count * 10);  //だんだん薄くする
+        textSize(width/40);
+        if(f_1){
+          text("GOOD", f1_x, height-eva_pos);
+          image(image_good, f1_x, height - note_line, effect_size, effect_size);
+        }
+        if(f_2) {
+          text("GOOD", f2_x, height-eva_pos);
+          image(image_good, f2_x, height - note_line, effect_size, effect_size);
+        }
+        if(f_3){
+          text("GOOD", f3_x, height-eva_pos);
+          image(image_good, f3_x, height - note_line, effect_size, effect_size);
+        }
+        if(!f_1 && !f_2 && !f_3){
+          text("GOOD", f2_x, height-eva_pos);
+          image(image_good, f2_x, height - note_line, effect_size*2, effect_size*2);
+        }
+        break;   
+    }
+    eva_pos+=width/400;
+    fill(255,255);
+    eva_count--;
+  }
+  
+  
+  /*ノーツの表示*/
+  public void displayRecord()
+  {
+    
+    /*長押しノーツの長押し部分の表示*/
+    if(time_finish > 0){
+      tint(255,150);
+      if(f_1 || f_2 || f_3){
+        if(f_1){
+          image(image_long_note1, f1_x, pos_finish+(pos-pos_finish)/2, width/7, pos-pos_finish);
+        }
+        if(f_2){
+          image(image_long_note2, f2_x, pos_finish+(pos-pos_finish)/2, width/7, pos-pos_finish);
+        }
+        if(f_3){
+          image(image_long_note3, f3_x, pos_finish+(pos-pos_finish)/2, width/7, pos-pos_finish);
+        }
+      }
+      else{
+        image(image_long_note4, f2_x, pos_finish+(pos-pos_finish)/2, width*4/7, pos-pos_finish);
+      } 
+      tint(255,150);
+    }
+    /*通常ノーツの表示*/
+    if(is){
+      if(f_1 || f_2 || f_3){
+        if(f_1){
+          image(image_note1, f1_x, pos, width/7, height/100);
+        }
+        if(f_2){
+          image(image_note2, f2_x, pos, width/7, height/100);
+        }
+        if(f_3){
+          image(image_note3, f3_x, pos, width/7, height/100);
+        }
+      }
+      else{
+        image(image_note4, f2_x, pos, width*4/7, height/100);
+      }
+    }
+    /*長押しノーツ終了部分の表示*/
+    if(is_finish){
+      if(f_1 || f_2 || f_3){
+        if(f_1){
+          image(image_note1, f1_x, pos_finish, width/7, height/100);
+        }
+        if(f_2){
+          image(image_note2, f2_x, pos_finish, width/7, height/100);
+        }
+        if(f_3){
+          image(image_note3, f3_x, pos_finish, width/7, height/100);
+        }
+      }
+      else{
+        image(image_note4, f2_x, pos_finish, width*4/7, height/100);
+      } 
+    }
+  }
+}
+  static public void main(String[] passedArgs) {
+    String[] appletArgs = new String[] { "GameManager" };
+    if (passedArgs != null) {
+      PApplet.main(concat(appletArgs, passedArgs));
+    } else {
+      PApplet.main(appletArgs);
+    }
+  }
 }

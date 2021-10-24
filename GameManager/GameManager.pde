@@ -16,12 +16,11 @@ Serial myPort;    /*宣言*/
 
 Minim minim;                  //minim変数
 AudioPlayer music;            //プレイ中の音楽
-AudioPlayer sound_select;     //選択音
-AudioPlayer sound_enter;      //決定音
+AudioSample sound_select;     //選択音
+AudioSample sound_enter;      //決定音
+AudioSample sound_hit;        //演奏音
 AudioPlayer show_music;       //選択中に流す曲
 Music playing_music;          //プレイ中の曲
-Sampler sampler;
-AudioOutput audio_output;
 
 boolean m_play = false;       //再生中か否か
 
@@ -116,11 +115,9 @@ void setup()
   font = createFont("font\\PixelMplus12-Bold.ttf", 48);  //基本となるフォントを用意
   
   minim = new Minim(this);                        //minimの初期化
-  sound_select = minim.loadFile("sound\\select.wav");    //効果音ファイルを読み込む 
-  sound_select.rewind();                          //再生位置を先頭へ戻す
-  minim = new Minim(this);                        //minimの初期化
-  sound_enter = minim.loadFile("sound\\enter.wav");      //効果音ファイルを読み込む 
-  sound_enter.rewind();                           //再生位置を先頭へ戻す
+  sound_select = minim.loadSample("sound\\select.wav");    //効果音ファイルを読み込む
+  sound_enter = minim.loadSample("sound\\enter.wav");      //効果音ファイルを読み込む
+  sound_hit = minim.loadSample("sound\\hit.wav");          //効果音ファイルを読み込む 
 
   image_note1 = loadImage("image\\note1.png");  //ノーツの画像を読み込む
   image_note2 = loadImage("image\\note2.png");  //ノーツの画像を読み込む
@@ -154,6 +151,17 @@ void setup()
   Button = new ControlP5(this);
   button_select_play = createButton("buttonPlay", "PLAY", 0, 0, width/2, height, color_off, color(255, 127, 127), color(255), color(255, 191, 127), 200);            //選択画面でのPLAYボタン
   button_select_record = createButton("buttonRecord", "RECORD", width/2, 0, width/2, height, color_off, color(127, 191, 255), color(255), color(255, 191, 127), 200);  //選択画面でのPLAYボタン
+}
+
+void stop()
+{
+  music.close();
+  show_music.close();
+  sound_select.close();
+  sound_enter.close();
+  sound_hit.close();
+  minim.stop();
+  super.stop();
 }
 
 void draw()
@@ -210,7 +218,7 @@ public void drawPlayWindow()
         move = false;          //操作があったかどうかの変数
         if (fret1 && select > 0) {     //一番最初を選択していない状態で第一フレットが押されたら
           select--;                      //選択中のインデックスを一つ上に
-          sound_select.play(0);           //効果音を再生
+          sound_select.trigger();           //効果音を再生
           if(show_music != null)show_music.close();
           show_music = minim.loadFile("music\\" + List_music.get(select).name + ".mp3");      //効果音ファイルを読み込む 
           show_music.setGain(-10);        //音量を設定
@@ -220,7 +228,7 @@ public void drawPlayWindow()
         }
         else if(fret1 && select == 0){
           select = List_music.size() - 1;
-          sound_select.play(0);           //効果音を再生
+          sound_select.trigger();           //効果音を再生
           if(show_music != null)show_music.close();
           show_music = minim.loadFile("music\\" + List_music.get(select).name + ".mp3");      //効果音ファイルを読み込む 
           show_music.setGain(-10);        //音量を設定
@@ -230,7 +238,7 @@ public void drawPlayWindow()
         }
         if (fret3 && select < List_music.size() - 1) {  //一番最後を選択していない状態で第三フレットがおされたら
           select++;                      //選択中のインデックスを一つ下へ
-          sound_select.play(0);           //効果音を再生
+          sound_select.trigger();           //効果音を再生
           if(show_music != null)show_music.close();
           show_music = minim.loadFile("music\\" + List_music.get(select).name + ".mp3");      //効果音ファイルを読み込む 
           show_music.rewind();            //再生位置を先頭へ戻す
@@ -240,7 +248,7 @@ public void drawPlayWindow()
         }
         else if(fret3 && select == List_music.size()-1){
           select = 0;
-          sound_select.play(0);           //効果音を再生
+          sound_select.trigger();           //効果音を再生
           if(show_music != null)show_music.close();
           show_music = minim.loadFile("music\\" + List_music.get(select).name + ".mp3");      //効果音ファイルを読み込む 
           show_music.rewind();            //再生位置を先頭へ戻す
@@ -252,7 +260,7 @@ public void drawPlayWindow()
           displaySelect();                 //選択画面を表示        
 
           if (pick) {                      //弦が押されたら
-            sound_enter.play(0);              //効果音を再生
+            sound_enter.trigger();              //効果音を再生
             if(show_music != null) show_music.close();
             selectMusic();                   //曲選択
             List_play = fm.loadRecord(playing_music.name);                    //ノーツを読み込む
@@ -266,19 +274,19 @@ public void drawPlayWindow()
         move = false;          //操作があったかどうかの変数
         if (fret1 && select > 0) {     //一番最初を選択していない状態で第一フレットが押されたら
           select--;                      //選択中のインデックスを一つ上に
-          sound_select.play(0);           //効果音を再生
+          sound_select.trigger();           //効果音を再生
           move = true;                   //操作があった状態へ
         }
         if (fret3 && select < 3) {  //一番最後を選択していない状態で第三フレットがおされたら
           select++;                      //選択中のインデックスを一つ下へ
-          sound_select.play(0);           //効果音を再生
+          sound_select.trigger();           //効果音を再生
           move = true;                   //操作があった状態へ
         }
       
         displaySelect();  //メニューを表示
       
         if (pick) {                      //弦が押されたら
-          sound_enter.play(0);              //効果音を再生
+          sound_enter.trigger();              //効果音を再生
           switch(select){                  //選択項目を確認
             case 0:                         /*再開*/
               mode = MODE.PLAY;             //プレイ中に戻す
@@ -304,8 +312,8 @@ public void drawPlayWindow()
               count = 180;                  //カウントダウン
               break;
             case 3:                       /*曲選択へ戻る*/
-              reset();                      //初期化
               mode = MODE.SELECT_PLAY;      //モード選択へ戻る
+              reset();                      //初期化
               break;
           }
           delay(500);
@@ -370,8 +378,10 @@ public void drawPlayWindow()
                     note.end = true;
                   }
                   combo++;
+                  sound_hit.trigger();              //効果音を再生
                   //break;
                 }
+                
               }
               else if(pick == true && keep == true){    //長押し中だったら
                 if(note.time_finish > 0 && note.end == true && note.end_finish != true){  //長押しノーツだったら
@@ -413,6 +423,7 @@ public void drawPlayWindow()
                       note.end_finish = true;
                     }
                     combo++;
+                    sound_hit.trigger();              //効果音を再生
                     //break;
                   }  
                 }
@@ -480,34 +491,30 @@ public void drawPlayWindow()
         move = false;          //操作があったかどうかの変数
         if (fret1 && select > 0) {     //一番最初を選択していない状態で第一フレットが押されたら
           select--;                      //選択中のインデックスを一つ上に
-          sound_select.play(0);           //効果音を再生
+          sound_select.trigger();           //効果音を再生
           move = true;                   //操作があった状態へ
         }
         else if (fret1 && select == 0) {     //一番最初を選択状態で第一フレットが押されたら
           select = List_music.size() - 1;    //選択中のインデックスを一番下に
-          sound_select.play(0);           //効果音を再生
+          sound_select.trigger();           //効果音を再生
           move = true;                   //操作があった状態へ
         }
         if (fret3 && select < List_music.size() - 1) {  //一番最後を選択していない状態で第三フレットがおされたら
           select++;                      //選択中のインデックスを一つ下へ
-          sound_select.play(0);           //効果音を再生
+          sound_select.trigger();           //効果音を再生
           move = true;                   //操作があった状態へ
         }
         else if (fret3 && select == 0) {  //一番最後を選択状態で第三フレットがおされたら
           select=0;                      //選択中のインデックスを一番上に
-          sound_select.play(0);           //効果音を再生
+          sound_select.trigger();           //効果音を再生
           move = true;                   //操作があった状態へ
         }
         if (List_music.size() > 0) {     //曲のリストに一つ以上曲が入っていたら
           displaySelect();                 //選択画面を表示        
 
           if (pick) {                      //弦が押されたら
-            sound_enter.play(0);              //効果音再生
+            sound_enter.trigger();              //効果音再生
             selectMusic();                   //曲選択
-            sampler = new Sampler("music\\" + List_music.get(select).name + ".mp3", 4, minim);
-            audio_output = minim.getLineOut();
-            sampler.rate.setLastValue(0.5);
-            sampler.patch(audio_output);
             move = true;                     //操作があった状態へ
           }
         }
@@ -518,19 +525,19 @@ public void drawPlayWindow()
         move = false;          //操作があったかどうかの変数
         if (fret1 && select > 0) {     //一番最初を選択していない状態で第一フレットが押されたら
           select--;                      //選択中のインデックスを一つ上に
-          sound_select.play(0);          //効果音を再生
+          sound_select.trigger();          //効果音を再生
           move = true;                   //操作があった状態へ
         }
         if (fret3 && select < 3) {  //一番最後を選択していない状態で第三フレットがおされたら
           select++;                      //選択中のインデックスを一つ下へ
-          sound_select.play(0);          //効果音を再生
+          sound_select.trigger();          //効果音を再生
           move = true;                   //操作があった状態へ
         }
       
         displaySelect();  //メニューを表示
       
         if (pick) {                      //弦が押されたら
-          sound_enter.play(0);           //効果音を再生
+          sound_enter.trigger();           //効果音を再生
           switch(select){  //選択項目を確認
             case 0:                       /*再開*/
               mode = MODE.RECORD;           //レコード中に戻す
@@ -561,8 +568,8 @@ public void drawPlayWindow()
               count = 180;                  //カウントダウン
               break;
             case 3:                       /*曲選択へ戻る*/
-              reset();                      //初期化
               mode = MODE.SELECT_RECORD;    //レコード曲選択へ戻る
+              reset();                      //初期化
               break;
           }
           move = true;                   //操作があった状態へ
@@ -601,6 +608,7 @@ public void drawPlayWindow()
           List_play.add(new_note);
           new_note.is = true;
           combo++;
+          sound_hit.trigger();              //効果音を再生
           score+=(score_perfect*(float)(10 + combo/50)/10);
         }
         else if(pick == true && keep == true){    //長押し中だったら
@@ -616,6 +624,7 @@ public void drawPlayWindow()
             new_note.time_finish = position;
             new_note.is_finish = true;
             combo++;
+            sound_hit.trigger();              //効果音を再生
             score+=(score_perfect*(float)(10 + combo/10)/10);
           }
         }
@@ -642,28 +651,28 @@ public void drawPlayWindow()
         move = false;                //操作があったかどうかの変数
         if (fret1 && select > 0) {     //一番最初を選択していない状態で第一フレットが押されたら
           select--;                      //選択中のインデックスを一つ上に
-          sound_select.play(0);          //効果音を再生
+          sound_select.trigger();          //効果音を再生
           move = true;                   //操作があった状態へ
         }
         if (fret3 && select < 1) {  //一番最後を選択していない状態で第三フレットがおされたら
           select++;                      //選択中のインデックスを一つ下へ
-          sound_select.play(0);          //効果音を再生
+          sound_select.trigger();          //効果音を再生
           move = true;                   //操作があった状態へ
         }
       
         displaySelect();  //メニューを表示
         
         if (pick) {                  //弦が押されたら
-          sound_enter.play(0);         //効果音を再生
+          sound_enter.trigger();         //効果音を再生
           switch(select){              //選択項目を確認
             case 0:                      //保存して戻る
               fm.saveRecord(playing_music.name, List_play, combo);                //レコードファイルを保存
-              reset();                     //初期化
               mode = MODE.SELECT_RECORD;   //レコード曲選択へ戻る
+              reset();                     //初期化
               break;
             case 1:                      //保存せずに戻る
-              reset();                     //初期化
               mode = MODE.SELECT_RECORD;   //レコード曲選択へ戻る
+              reset();                     //初期化
               break;
           }  
           move = true;                   //操作があった状態へ
@@ -914,7 +923,7 @@ void hideButtons()
 /*モード選択PLAYボタンが押されたときの関数*/
 void buttonPlay()
 {
-  sound_enter.play(0);           //効果音を再生
+  sound_enter.trigger();           //効果音を再生
   mode = MODE.SELECT_PLAY;                                     //モードをスタイル選択に
   hideButtons();
   surface.setLocation(0, 0);                                    //画面の位置を左上に持っていく
@@ -926,7 +935,7 @@ void buttonPlay()
 /*モード選択RECORDボタンが押されたときの関数*/
 void buttonRecord()
 {
-  sound_enter.play(0);           //効果音を再生
+  sound_enter.trigger();           //効果音を再生
   mode = MODE.SELECT_RECORD;                                    //モードをレコード曲選択に
   hideButtons();
   surface.setLocation(0, 0);                                    //画面の位置を左上に持っていく
